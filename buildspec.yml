@@ -1,0 +1,59 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: ap-northeast-2
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto21
+    commands:
+      # Gradle Wrapper를 사용하므로 별도의 설치 불필요
+      - echo "No additional software installation required due to Gradle Wrapper."
+  pre_build:
+    commands:
+      - echo Build started on `date`
+      - chmod +x gradlew  # ./gradlew 파일에 실행 권한 추가
+      - echo "Parameter Store에서 비밀값 가져오기"
+      - DB_USER=$(aws ssm get-parameter --name "/erp_mes/local/DB_USERNAME" --with-decryption --query "Parameter.Value" --output text)
+      - DB_PASS=$(aws ssm get-parameter --name "/erp_mes/local/DB_PASSWORD" --with-decryption --query "Parameter.Value" --output text)
+      - |
+        cat > src/main/resources/application.properties << EOF
+        spring.application.name=erp_mes
+        server.port=8080
+        spring.thymeleaf.cache=false
+        spring.jpa.show-sql=true
+        spring.jpa.properties.hibernate.format_sql=true
+        spring.config.import=application-db.properties
+        spring.servlet.multipart.max-file-size=5MB
+        spring.servlet.multipart.max-request-size=25MB
+        file.uploadBaseLocation=/usr/local/tomcat/upload
+        file.itemImgLocation=/personnel/img
+        service.key=6cf7fabe8d592c5680ed84d3e1ffcfc159cbe41b6c8f858247e6f68919f18953
+        mybatis.mapper-locations=classpath:mapper/*.xml
+        mybatis.configuration.map-underscore-to-camel-case=true
+        mybatis.type-aliases-package=com.erp_mes.erp.personnel.dto, com.erp_mes.erp.approval.dto, com.erp_mes.erp.groupware.dto, com.erp_mes.erpattendance.dto, com.erp_mes.erpnotice.dto, com.erp_mes.erpschedule.dto, com.erp_mes.erpdocument.dto 
+        EOF
+
+      - |
+        cat > src/main/resources/application-db.properties << EOF
+        spring.datasource.driver-class-name=oracle.jdbc.OracleDriver
+        spring.datasource.url=jdbc:oracle:thin:@itwillbs.com:1601:ORCL2412
+        spring.datasource.username=${DB_USER}
+        spring.datasource.password=${DB_PASS}
+        EOF
+  build:
+    commands:
+      - echo Building the Spring Boot application
+      - ./gradlew clean bootWar  # 빌드 명령
+      - ls -l build/libs/
+      - mv build/libs/myapp.war myapp.war
+  post_build:
+    commands:
+      - echo Build and packaging completed on `date`
+artifacts:
+  files:
+    - myapp.war  # 생성된 아티팩트가 myapp.war임을 확실히 함
+    - appspec.yml
+    - scripts/*
