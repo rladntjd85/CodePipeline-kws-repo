@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.erp_mes.mes.pop.mapper.WorkResultMapper">
+
+<!-- 작업지시현황을 위한 공정, 작업지시, 사원테이블 조인 -->
+<select id="workerkWithOrder" resultType="com.erp_mes.mes.pop.dto.WorkResultDTO">
+	SELECT
+		w.good_qty 			AS goodQty, 
+		w.defect_qty 		AS defectQty,
+        o.work_order_id 	AS workOrderId,
+        pr.product_id       AS productId,
+        prod.product_name	AS productNm,
+        e.equip_nm    		AS equipmentNm,
+        o.emp_id 			AS empId,
+        emp.emp_name 		AS empNm,
+        o.start_date 		AS startDate,
+        o.end_date 			AS endDate,
+        o.work_order_status AS workOrderStatus
+	FROM work_order o
+	LEFT JOIN work_result w ON w.work_order_id = o.work_order_id
+	LEFT JOIN employee emp ON emp.emp_id = o.emp_id
+	LEFT JOIN process_routing pr ON o.bom_id = pr.bom_id
+	LEFT JOIN equipment e ON pr.equip_id = e.equip_id
+    LEFT JOIN product prod ON pr.product_id = prod.product_id
+ 	WHERE o.emp_id = #{empId}
+ 	ORDER BY o.work_order_id ASC
+</select>
+
+<!-- 상세작업지시 모달을 위한 조인 -->
+<select id="workOrderWithBom" resultType="com.erp_mes.mes.pop.dto.WorkResultDTO">
+	SELECT
+		pr.product_id   	AS productId,
+        pr.pro_id			AS processId,
+        pr.route_id			AS routeId,
+        pr.pro_seq			AS proSeq,
+        p.pro_nm      		AS processNm,
+        pr.equip_id   		AS equipmentId,
+        e.equip_nm    		AS equipmentNm,
+        pr.bom_id     		AS bomId,
+        pr.material_id  	AS materialId,
+        m.material_name 	AS materialNm,
+        (SELECT quantity
+         FROM bom b
+         WHERE 
+            b.bom_id = pr.bom_id
+            AND b.material_id = pr.material_id        
+		 ) AS quantity,
+		 (SELECT MIN(work_order_id)
+          FROM work_order o
+          WHERE o.bom_id = pr.bom_id) AS workOrderId,
+          (SELECT MIN(work_order_status)
+		   FROM work_order o
+		   WHERE o.bom_id = pr.bom_id) AS workOrderStatus
+    FROM process_routing pr
+    LEFT JOIN process p ON pr.pro_id = p.pro_id
+    LEFT JOIN equipment e ON pr.equip_id = e.equip_id
+    LEFT JOIN material m ON pr.material_id = m.material_id
+    WHERE pr.product_id = #{productId}
+    ORDER BY pr.pro_seq ASC
+</select>
+
+<!-- 작업지시 기준 설비만 가져오기(대시보드를 위함) -->
+<select id="bomByWorkOrderId" parameterType="long" resultType="com.erp_mes.mes.pop.dto.WorkResultDTO">
+	SELECT
+	    o.work_order_id AS workOrderId,
+	    e.equip_id      AS equipmentId,
+	    e.equip_nm      AS equipmentNm
+	FROM work_order o
+	JOIN process_routing pr ON pr.bom_id = o.bom_id
+	JOIN equipment e ON e.equip_id = pr.equip_id
+	WHERE o.work_order_id = #{workOrderId}
+</select>
+
+
+<!-- 작업시작시 작업지시서의 상태변경 -->
+<update id="updateWorkOrderStatus" parameterType="long">
+	UPDATE work_order
+	SET work_order_status = '진행중'
+	WHERE work_order_id = #{workOrderId}
+</update>
+
+<!-- 작업현황을 위한 조인테이블(생산실적, 공정, 설비, 작업지시) -->
+<select id="updateWorkResult" parameterType="long" resultType="com.erp_mes.mes.pop.dto.WorkResultDTO">
+	SELECT
+		w.result_id       	AS resultId,
+        w.good_qty        	AS goodQty,
+        w.defect_qty      	AS defectQty,
+        w.updated_at      	AS updatedAt,
+        w.defect_item_id    AS defectItemId,
+        
+        o.work_order_id   	AS workOrderId,
+        o.bom_id          	AS bomId,
+        o.work_order_status AS workOrderStatus,
+        pr.product_id		AS productId,
+        pr.plan_quantity    AS planQty,
+		prod.product_name 	AS productNm
+
+    FROM work_order o
+    LEFT JOIN work_result w      ON w.work_order_id = o.work_order_id
+    LEFT JOIN product_plan pr 	 ON o.plan_id = pr.plan_id
+	LEFT JOIN product prod ON pr.product_id = prod.product_id
+    WHERE o.work_order_id = #{workOrderId}
+</select>
+
+<!-- 작업현황 무한스크롤 -->
+<select id="workResultWithPaged" parameterType="map" resultType="com.erp_mes.mes.pop.dto.WorkResultDTO">
+	SELECT
+		w.result_id       	AS resultId,
+        w.good_qty        	AS goodQty,
+        w.defect_qty      	AS defectQty,
+        w.updated_at      	AS updatedAt,
+        w.defect_item_id    AS defectItemId,
+        
+        o.work_order_id   	AS workOrderId,
+        o.bom_id          	AS bomId,
+        o.work_order_status AS workOrderStatus,
+        pp.product_id		AS productId,
+        pp.plan_quantity    AS planQty,
+        prod.product_name	AS productNm
+        
+    FROM work_order o
+    LEFT JOIN product_plan pp 	 ON o.plan_id = pp.plan_id
+    LEFT JOIN product prod 	 	 ON pp.product_id = prod.product_id
+    LEFT JOIN work_result w      ON w.work_order_id = o.work_order_id
+
+	WHERE o.work_order_status IN ('작업완료', '검사대기', '진행중')
+	ORDER BY 
+	  CASE 
+	    WHEN o.work_order_status = '진행중' THEN 1
+	    WHEN o.work_order_status NOT IN ('검사대기', '작업완료') THEN 2
+	    ELSE 3
+	  END
+	OFFSET #{offset} ROWS FETCH NEXT #{size} ROWS ONLY	
+</select>
+
+<!-- 작업완료버튼시 상태 변경 -->
+<update id="updateWorkStatusFinish" parameterType="java.lang.Long">
+	UPDATE work_order
+	SET work_order_status = '검사대기'
+	WHERE work_order_id = #{_parameter}
+</update>
+
+<!-- 로트아이디 -->
+<select id="findLotIdByWorkOrderId" resultType="string" parameterType="long">
+    SELECT lot_id 
+    FROM work_result 
+    WHERE work_order_id = #{workOrderId}
+    FETCH FIRST 1 ROWS ONLY
+</select>
+
+
+
+
+
+    
+</mapper>

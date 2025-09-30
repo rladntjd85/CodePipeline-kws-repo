@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/layout}">
+<head>
+    <!-- 개별페이지 CSS 영역 -->
+    <th:block layout:fragment="style">
+        <!--        <link rel="stylesheet" th:href="@{/css/item_main.css}" />-->
+    </th:block>
+        <link rel="stylesheet" href="https://uicdn.toast.com/grid/latest/tui-grid.css" />
+    	<script src="https://uicdn.toast.com/grid/latest/tui-grid.js"></script>
+    
+    
+</head>
+<body>
+<th:block layout:fragment="content">
+    <div class="container-fluid">
+    	<h1 class="h3 mb-2 text-gray-900">설비 관리</h1>
+<!-- 		모달창 버튼으로 변경 -->
+    	<button id="openModalBtn" class="btn btn-primary btn-sm" style="float:right;">추가</button>
+		<div id="grid"></div>
+
+	<!-- 모달 -->
+		<div class="modal fade" id="dataModal" tabindex="-1" aria-labelledby="dataModalLabel" aria-hidden="true">
+		  <div class="modal-dialog">
+		    <div class="modal-content">
+		      
+		      <!-- 모달 헤더 -->
+		      <div class="modal-header">
+		        <h5 class="modal-title" id="dataModalLabel">설비 추가</h5>
+		      </div>
+		      
+		      <!-- 모달 바디 -->
+		      <div class="modal-body">
+		        <form id="dataForm">
+		          <div class="mb-3">
+		            <label for="equipNm" class="form-label">설비 이름</label>
+		            <input type="text" class="form-control" id="equipNm" name="equipNm" required >
+		          </div>
+		          <div class="mb-3">
+		            <label for="note" class="form-label">비고</label>
+		             <textarea class="form-control"  id="note" name="note" rows="3"></textarea>
+		          </div>
+		          <div class="mb-3">
+		            <label for="purchaseDt" class="form-label">설비 구입 날짜</label>
+		            <input type="date" name="purchaseDt" class="form-control" id="purchaseDt">
+				           
+		          </div>
+		          <div class="mb-3">
+		            <label for="installDt" class="form-label">설치 날짜</label>
+		            <input type="date" name="installDt" class="form-control" id="installDt" />
+				           
+		          </div>
+		          <div class="mb-3">
+		            <label for="typeId" class="form-label">설비 유형</label>
+		            <select name="typeId" class="form-select" id="typeId">
+			        	<option value="">설비 유형</option>
+			        	<th:block th:each="comList :${comList}">
+			          		<option th:value="${comList.comDtId}" th:text="${comList.comDtNm}"></option>
+			          	</th:block>
+			        </select>
+		          </div>
+		        </form>
+		      </div>
+		      
+		      <!-- 모달 푸터 -->
+		      <div class="modal-footer">
+		        <button type="button" class="btn btn-secondary" id="closeBtn">닫기</button>
+		        <button type="submit" id="saveBtn" class="btn btn-primary">저장</button>
+		      </div>
+		      
+		    </div>
+		  </div>
+		</div>
+
+
+   
+    </div>
+
+</th:block>
+<!-- 	js 분리 -->
+<th:block layout:fragment="script">
+<script th:src="@{/bootstrap/vendor/jquery/jquery.min.js}"></script>
+<script th:src="@{/bootstrap/js/plant/equip.js}"></script>	
+</th:block>
+</body>
+</html>

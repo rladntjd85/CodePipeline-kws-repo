@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+	xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport"
+	content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="description" content="">
+<meta name="author" content="">
+
+<meta name="_csrf" th:content="${_csrf.token}">
+<meta name="_csrf_header" th:content="${_csrf.headerName}">
+
+<title>부산 아아티윌</title>
+
+<link th:href="@{/bootstrap/vendor/fontawesome-free/css/all.min.css}"
+	rel="stylesheet" type="text/css" />
+<link
+	href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
+	rel="stylesheet">
+<link th:href="@{/bootstrap/css/sb-admin-2.min.css}" rel="stylesheet" />
+
+<link th:href="@{/bootstrap/vendor/datatables/dataTables.bootstrap4.min.css}"
+	rel="stylesheet" />
+<link
+	href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css"
+	rel="stylesheet" />
+
+</head>
+<body id="page-top">
+	<!-- Page Wrapper -->
+	<th:block th:insert="~{fragments/header}"></th:block>
+
+	<th:block layout:fragment="content"></th:block>
+
+	<!--  공통 푸터 -->
+	<footer th:insert="~{fragments/footer}"></footer>
+	<script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+	<script th:src="@{/bootstrap/vendor/jquery/jquery.min.js}"></script>
+	<script th:src="@{/bootstrap/vendor/bootstrap/js/bootstrap.bundle.min.js}"></script>
+	<script th:src="@{/bootstrap/vendor/jquery-easing/jquery.easing.min.js}"></script>
+
+	<script th:src="@{/bootstrap/vendor/datatables/jquery.dataTables.min.js}"></script> <!-- 부트스트랩 표테이블 jQuery -->
+	<script th:src="@{/bootstrap/vendor/datatables/dataTables.bootstrap4.min.js}"></script> <!-- 부트스트랩 표테이블 js -->
+
+	<script th:src="@{/bootstrap/vendor/chart.js/Chart.min.js}"></script>
+	<script th:src="@{/bootstrap/js/sb-admin-2.min.js}"></script>
+	<script th:src="@{/bootstrap/js/demo/chart-area-demo.js}"></script>
+	<script th:src="@{/bootstrap/js/demo/chart-pie-demo.js}"></script>
+	<script th:src="@{/bootstrap/js/demo/chart-bar-demo.js}"></script>
+
+	<!-- 그룹웨어 관련 js -->
+	<script	th:src="@{https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js}"></script> <!-- 달력관련 js -->
+	<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.5.1/dist/sockjs.min.js"></script> <!-- 웹소켓 js -->
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script> <!-- 웹소켓 js -->
+
+	<!-- 개별 페이지 자바스크립트 영역 -->
+	<th:block layout:fragment="script"></th:block>
+
+</body>
+</html>

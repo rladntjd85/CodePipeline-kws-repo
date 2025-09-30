@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layouts/layout}">
+
+<head>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+<style>
+.warehouse-container {
+    padding: 20px;
+    background: #f0f2f5;
+}
+
+.warehouse-grid {
+    display: flex;
+    gap: 30px;
+    padding: 20px;
+    background: white;
+    border-radius: 12px;
+    overflow-x: auto;
+}
+
+.rack-section {
+    min-width: 200px;
+}
+
+.rack-title {
+    text-align: center;
+    font-weight: bold;
+    font-size: 14px;
+    color: #495057;
+    margin-bottom: 10px;
+    padding: 8px;
+    background: linear-gradient(180deg, #e9ecef 0%, #dee2e6 100%);
+    border-radius: 8px 8px 0 0;
+    border: 1px solid #adb5bd;
+}
+
+.rack-levels {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: #f8f9fa;
+    padding: 10px;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+}
+
+.level-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.level-label {
+    width: 30px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: #6c757d;
+}
+
+.level-cells {
+    display: flex;
+    gap: 3px;
+    flex: 1;
+}
+
+.location-cell {
+    flex: 1;
+    min-width: 80px;
+    height: 70px;
+    border: 2px solid #adb5bd;
+    border-radius: 6px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    font-size: 10px;
+    background: white;
+    box-shadow: inset 0 -2px 4px rgba(0,0,0,0.05);
+}
+
+.location-cell:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 10;
+}
+
+/* 재고 상태별 색상 - 더 선명하게 */
+.location-empty {
+    background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+    border-color: #dee2e6;
+    color: #adb5bd;
+}
+
+.location-low {
+    background: linear-gradient(180deg, #d4edda 0%, #c3e6cb 100%);
+    border-color: #28a745;
+    color: #155724;
+}
+
+.location-medium {
+    background: linear-gradient(180deg, #fff3cd 0%, #ffeeba 100%);
+    border-color: #ffc107;
+    color: #856404;
+}
+
+.location-high {
+    background: linear-gradient(180deg, #ffeaa7 0%, #fdcb6e 100%);
+    border-color: #fd79a8;
+    color: #833c0c;
+}
+
+.location-full {
+    background: linear-gradient(180deg, #f8d7da 0%, #f5c6cb 100%);
+    border-color: #dc3545;
+    color: #721c24;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+.location-id {
+    font-size: 9px;
+    color: inherit;
+    opacity: 0.7;
+    margin-bottom: 2px;
+}
+
+.item-name {
+    font-weight: bold;
+    font-size: 11px;
+    margin: 2px 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.item-qty {
+    font-size: 10px;
+    margin-top: auto;
+}
+
+.usage-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(0,0,0,0.1);
+}
+
+.usage-fill {
+    height: 100%;
+    background: currentColor;
+    opacity: 0.5;
+    transition: width 0.3s;
+}
+
+/* 3D 효과를 위한 그림자 */
+.rack-section {
+    perspective: 1000px;
+}
+
+.rack-levels {
+    transform-style: preserve-3d;
+    transform: rotateX(2deg);
+}
+
+/* Zone 구분 */
+.zone-container {
+    margin-bottom: 30px;
+}
+
+.zone-header {
+    font-size: 18px;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 15px;
+    padding-left: 10px;
+    border-left: 4px solid #007bff;
+}
+</style>
+</head>
+
+<body>
+<th:block layout:fragment="content">
+<div class="container-fluid warehouse-container">
+    <h1 class="h3 mb-4 text-gray-800">창고 재고 현황</h1>
+    
+    <!-- 창고 선택 및 요약 정보 -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <select class="form-control" id="warehouseSelect">
+                                <option th:each="warehouse : ${warehouses}" 
+                                        th:value="${warehouse.warehouseId}"
+                                        th:text="${warehouse.warehouseName + ' - ' + warehouse.warehouseType}"
+                                        th:selected="${warehouse.warehouseId == defaultWarehouseId}">
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="searchInput" 
+                                   placeholder="품목명 또는 위치코드 검색">
+                        </div>
+                        <div class="col-md-4">
+							<button class="btn btn-primary" onclick="loadWarehouseData()">
+							    <i class="fas fa-search"></i> 조회
+							</button>
+                            <button class="btn btn-success" onclick="window.location.reload()">
+                                <i class="fas fa-sync"></i> 새로고침
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 요약 정보 -->
+        <div class="col-md-4">
+            <div class="summary-card">
+                <div class="row">
+                    <div class="col-4 summary-stat">
+                        <div class="stat-value" id="totalLocations">0</div>
+                        <div class="stat-label">전체 위치</div>
+                    </div>
+                    <div class="col-4 summary-stat">
+                        <div class="stat-value" id="usedLocations">0</div>
+                        <div class="stat-label">사용중</div>
+                    </div>
+                    <div class="col-4 summary-stat">
+                        <div class="stat-value" id="totalStock">0</div>
+                        <div class="stat-label">총 재고</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 범례 -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-around">
+                <span><i class="fas fa-square" style="color:#f8f9fa;"></i> 비어있음</span>
+                <span><i class="fas fa-square" style="color:#a8e6cf;"></i> 여유 (1~30%)</span>
+                <span><i class="fas fa-square" style="color:#ffd23f;"></i> 보통 (31~60%)</span>
+                <span><i class="fas fa-square" style="color:#ffb347;"></i> 주의 (61~90%)</span>
+                <span><i class="fas fa-square" style="color:#ff6b6b;"></i> 만재 (91~100%)</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 창고 레이아웃 -->
+    <div class="card shadow">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary" id="warehouseTitle">창고 레이아웃</h6>
+        </div>
+        <div class="card-body">
+            <div id="warehouseLayout">
+                <!-- 동적으로 생성 -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- 위치 상세 모달 -->
+    <div class="modal fade" id="locationDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">위치 상세 정보</h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th width="40%">위치코드</th>
+                                    <td id="modal-location"></td>
+                                </tr>
+                                <tr>
+                                    <th>Manage ID</th>
+                                    <td id="modal-manage-id"></td>
+                                </tr>
+                                <tr>
+                                    <th>품목코드</th>
+                                    <td id="modal-item-code"></td>
+                                </tr>
+                                <tr>
+                                    <th>품목명</th>
+                                    <td id="modal-item-name"></td>
+                                </tr>
+                                <tr>
+                                    <th>LOT번호</th>
+                                    <td id="modal-lot"></td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th width="40%">현재수량</th>
+                                    <td><span id="modal-current-qty"></span> / <span id="modal-max-qty"></span></td>
+                                </tr>
+                                <tr>
+                                    <th>사용률</th>
+                                    <td>
+                                        <div class="progress">
+                                            <div class="progress-bar" id="modal-usage-bar"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>담당자</th>
+                                    <td id="modal-emp"></td>
+                                </tr>
+                                <tr>
+                                    <th>최종수정</th>
+                                    <td id="modal-update"></td>
+                                </tr>
+                                <tr>
+                                    <th>입고일자</th>
+                                    <td id="modal-create"></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</th:block>
+
+<th:block layout:fragment="script">
+<script th:inline="javascript">
+const token = $("meta[name='_csrf']").attr("content");
+const header = $("meta[name='_csrf_header']").attr("content");
+
+// 페이지 로드 시 실행
+$(document).ready(function() {
+	console.log("페이지 시작");
+    // 창고 목록 동적 로드
+    loadWarehouseOptions();
+    
+    // 기본 창고 데이터 로드
+    loadWarehouseData();
+});
+
+// 창고 옵션 로드
+function loadWarehouseOptions() {
+    $.ajax({
+        url: '/inventory/api/warehouses',
+        type: 'GET',
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader(header, token);
+        },
+        success: function(warehouses) {
+            let html = '';
+            warehouses.forEach(w => {
+                html += `<option value="${w.warehouseId}">${w.warehouseName} - ${w.warehouseType}</option>`;
+            });
+            $('#warehouseSelect').html(html);
+            
+            // 첫 번째 창고 데이터 로드
+            if(warehouses.length > 0) {
+                loadWarehouseData(warehouses[0].warehouseId);
+            }
+        }
+    });
+}
+
+// 창고 데이터 로드
+function loadWarehouseData(warehouseId) {
+    if(!warehouseId) {
+        warehouseId = $('#warehouseSelect').val();
+    }
+    
+    console.log("조회 시작 - 창고:", warehouseId);
+    
+    // 먼저 그리드 생성!
+    createWarehouseGrid(warehouseId);
+    
+    $.ajax({
+        url: `/inventory/api/warehouse/visual/${warehouseId}`,
+        type: 'GET',
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader(header, token);
+        },
+        success: function(response) {
+            console.log("응답 받음:", response);
+            
+            if(response.success && response.stockLayout) {
+                updateWarehouseGrid(response.stockLayout);
+                
+                // 요약 정보 업데이트
+                const totalLoc = $('.location-cell').length;
+                const usedLoc = response.stockLayout.filter(item => item.currentQty > 0).length;
+                const totalQty = response.stockLayout.reduce((sum, item) => sum + (item.currentQty || 0), 0);
+                
+                $('#totalLocations').text(totalLoc);
+                $('#usedLocations').text(usedLoc);
+                $('#totalStock').text(totalQty.toLocaleString());
+            }
+        },
+        error: function(xhr) {
+            console.error("에러:", xhr);
+            alert('데이터 조회 실패!');
+        }
+    });
+}
+
+function createWarehouseGrid(warehouseId) {
+    const layouts = {
+        'A01': { zones: 3, racks: 3, levels: 3, cells: 2 },    // 3x3x3x2 = 54개
+        'A02': { zones: 3, racks: 2, levels: 2, cells: 2 },    // 3x2x2x2 = 24개
+        'AA02': { zones: 2, racks: 2, levels: 2, cells: 2 },   // 2x2x2x2 = 16개
+        'BH002': { zones: 3, racks: 2, levels: 2, cells: 2 },  // 3x2x2x2 = 24개
+        'CH003': { zones: 2, racks: 2, levels: 2, cells: 2 },  // 2x2x2x2 = 16개
+        'CJ01': { zones: 3, racks: 2, levels: 2, cells: 2 },   // 3x2x2x2 = 24개
+        'DD02': { zones: 4, racks: 3, levels: 3, cells: 3 }    // 4x3x3x3 = 108개
+    };
+    
+    const layout = layouts[warehouseId];
+    if (!layout) return;
+    
+    let html = '<div class="warehouse-full-container">';
+    
+    // Zone별로 구분해서 생성
+    for(let z = 1; z <= layout.zones; z++) {
+        html += '<div class="zone-container">';
+        html += `<div class="zone-header">Zone ${z}</div>`;
+        html += '<div class="warehouse-grid">';
+        
+        // 각 랙별로 섹션 생성
+        for(let r = 1; r <= layout.racks; r++) {
+            html += '<div class="rack-section">';
+            html += `<div class="rack-title">Rack ${r}</div>`;
+            html += '<div class="rack-levels">';
+            
+            // 레벨을 위에서 아래로
+            for(let l = layout.levels; l >= 1; l--) {
+                html += '<div class="level-row">';
+                html += `<div class="level-label">L${l}</div>`;
+                html += '<div class="level-cells">';
+                
+                // 각 셀
+                for(let c = 1; c <= layout.cells; c++) {
+                    const locId = `${warehouseId}-Z${z}-R${r}-L${l}-C${c}`;
+                    const shortId = `R${r}-L${l}-C${c}`;
+                    
+                    html += `
+                        <div class="location-cell location-empty" 
+                             data-location="${locId}"
+                             title="${locId}"
+                             onclick="showLocationDetail('${locId}')">
+                            <div class="location-id">${shortId}</div>
+                            <div class="item-name">비어있음</div>
+                            <div class="item-qty">0 / 1000</div>
+                            <div class="usage-indicator">
+                                <div class="usage-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                html += '</div>';
+                html += '</div>';
+            }
+            
+            html += '</div>';
+            html += '</div>';
+        }
+        
+        html += '</div>';
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    
+    $('#warehouseLayout').html(html);
+    
+    // 생성 확인 로그
+    const totalCells = layout.zones * layout.racks * layout.levels * layout.cells;
+    console.log(`${warehouseId} 그리드 생성 완료: ${layout.zones}개 Zone, 총 ${totalCells}개 위치`);
+}
+
+// 그리드 업데이트
+function updateWarehouseGrid(stockData) {
+    const locationMap = {};
+    stockData.forEach(item => {
+        locationMap[item.locationId] = item;
+    });
+    
+    $('.location-cell').each(function() {
+        const $cell = $(this);
+        const locationId = $cell.data('location');
+        const data = locationMap[locationId];
+        
+        if(data && data.currentQty > 0) {
+            const percent = Math.round((data.currentQty / (data.maxQty || 1000)) * 100);
+            
+            // 색상 결정
+            let colorClass = 'location-empty';
+            if(percent > 90) colorClass = 'location-full';
+            else if(percent > 60) colorClass = 'location-high';
+            else if(percent > 30) colorClass = 'location-medium';
+            else if(percent > 0) colorClass = 'location-low';
+            
+            $cell.removeClass('location-empty location-low location-medium location-high location-full')
+                 .addClass(colorClass);
+            
+            // 위치 ID 줄여서 표시 (예: L3-C2)
+            const shortId = locationId.split('-').slice(-2).join('-');
+            
+            $cell.html(`
+                <div class="location-id">${shortId}</div>
+                <div class="item-name" title="${data.itemName}">${data.itemName}</div>
+                <div class="item-qty">${data.currentQty} / ${data.maxQty || 1000}</div>
+                <div class="usage-indicator">
+                    <div class="usage-fill" style="width: ${percent}%"></div>
+                </div>
+            `);
+            
+            $cell.data('stockInfo', data);
+        }
+    });
+}
+
+// 위치 상세 정보 표시 (기존 함수 수정)
+function showLocationDetail(locationId) {
+    const $cell = $(`.location-cell[data-location="${locationId}"]`);
+    const stockInfo = $cell.data('stockInfo');
+    
+    $('#modal-location').text(locationId);
+    
+    if(stockInfo) {
+        $('#modal-manage-id').text(stockInfo.manageId || '-');
+        $('#modal-item-code').text(stockInfo.itemCode || '-');
+        $('#modal-item-name').text(stockInfo.itemName || '-');
+        $('#modal-current-qty').text(stockInfo.currentQty || 0);
+        $('#modal-max-qty').text(stockInfo.maxQty || 1000);
+        $('#modal-emp').text(stockInfo.empName || '-');
+        $('#modal-update').text(stockInfo.updateDate || '-');
+        
+        const usage = Math.round((stockInfo.currentQty / (stockInfo.maxQty || 1000)) * 100);
+        $('#modal-usage-bar').css('width', usage + '%').text(usage + '%');
+    } else {
+        $('#modal-manage-id').text('-');
+        $('#modal-item-code').text('-');
+        $('#modal-item-name').text('비어있음');
+        $('#modal-current-qty').text('0');
+        $('#modal-max-qty').text('1000');
+        $('#modal-usage-bar').css('width', '0%').text('0%');
+    }
+    
+    $('#locationDetailModal').modal('show');
+}
+
+// 랙 상세 모달 열기 (기존 함수 수정)
+function showRackDetail(rackId, itemName, itemCode) {
+    const warehouseId = $('#warehouseSelect').val();
+    const rack = rackId.split('-')[1];
+    
+    // 해당 랙의 모든 위치 데이터 조회
+    $.ajax({
+        url: `/inventory/api/warehouse/rack/${warehouseId}/${rack}`,
+        type: 'GET',
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader(header, token);
+        },
+        success: function(rackData) {
+            updateRackModal(rackId, rackData);
+            $('#rackDetailModal').modal('show');
+        }
+    });
+}
+
+// 랙 모달 업데이트
+function updateRackModal(rackId, rackData) {
+    $('#modalTitle').text(rackId + ' 상세 현황');
+    
+    let totalQty = 0;
+    const floors = {};
+    
+    // 층별로 그룹화
+    rackData.forEach(item => {
+        const level = item.level || '1';
+        if(!floors[level]) floors[level] = [];
+        floors[level].push(item);
+        totalQty += (item.currentQty || 0);
+    });
+    
+    $('#modal-total-qty').text(totalQty + '개');
+    
+    // 테이블 생성
+    const tbody = $('#rack-grid');
+    tbody.empty();
+    
+    for(let floor = 4; floor >= 1; floor--) {
+        const row = $('<tr>');
+        row.append(`<td><strong>${floor}층</strong></td>`);
+        
+        let floorTotal = 0;
+        const floorData = floors[floor] || [];
+        
+        for(let cell = 1; cell <= 3; cell++) {
+            const cellData = floorData[cell-1] || {};
+            const qty = cellData.currentQty || 0;
+            const max = cellData.maxQty || 50;
+            const percent = max > 0 ? (qty / max * 100).toFixed(0) : 0;
+            
+            floorTotal += qty;
+            
+            const cellClass = getCellClass(percent);
+            row.append(`
+                <td>
+                    <div class="rack-cell ${cellClass}">
+                        <strong>${qty}개</strong><br>
+                        <small>${percent}%</small>
+                        <div class="quantity-bar">
+                            <div class="quantity-bar-fill" style="width: ${percent}%"></div>
+                        </div>
+                    </div>
+                </td>
+            `);
+        }
+        
+        row.append(`<td><strong>${floorTotal}개</strong></td>`);
+        tbody.append(row);
+    }
+}
+
+// 창고 변경 이벤트
+$('#warehouseSelect').change(function() {
+    loadWarehouseData($(this).val());
+});
+
+// 조회 버튼
+$('.btn-primary').click(function() {
+    loadWarehouseData();
+});
+
+// 새로고침 버튼
+$('.btn-info').click(function() {
+    location.reload();
+});
+</script>
+</th:block>
+</body>
+</html>
