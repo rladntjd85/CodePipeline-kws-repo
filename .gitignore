@@ -38,4 +38,6 @@ out/
 .vscode/
 
 ### Properties 파일 전체 제외 ###
-*.properties
+application.properties
+application-db.properties
+
